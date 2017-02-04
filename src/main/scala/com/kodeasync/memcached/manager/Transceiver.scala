@@ -1,10 +1,14 @@
 package com.kodeasync.memcached.manager
 
+import java.net.InetSocketAddress
 import javax.xml.bind.Unmarshaller.Listener
 
 import akka.actor.Actor.Receive
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props}
+import akka.io.Tcp.Connected
+import akka.stream.ActorMaterializer
 import akka.util.ByteString
+import com.kodeasync.memcached.client.LocalClient
 import com.kodeasync.memcached.handler.CommandHandler.CommandResponse
 
 import scala.collection.immutable.Queue
@@ -12,9 +16,11 @@ import scala.collection.immutable.Queue
 /**
   * Created by shishir on 11/3/16.
   */
-class Transceiver(publisher: ActorRef) extends Actor with ActorLogging {
+class Transceiver()(implicit val system: ActorSystem) extends Actor with ActorLogging {
 
   import Transceiver._
+
+  val client = context.actorOf(Props(new LocalClient(new InetSocketAddress("192.168.99.100", 11211), self)(system)))
 
   var listener: Option[ActorRef] = None
   //use become unbecome and change context after message is sent/received
@@ -26,17 +32,12 @@ class Transceiver(publisher: ActorRef) extends Actor with ActorLogging {
       listener = Some(sender())
       val reque = req.queue
       val (head, newQueue) = reque.dequeue
-      publisher ! head.data
-      if(newQueue.isEmpty) {
-        self ! Crlf
-      } else {
+      client ! head.data
+      if(!newQueue.isEmpty) {
         self ! RequestQueue(newQueue)
+      } else {
+        context.become(response)
       }
-    }
-
-    case Crlf => {
-      publisher ! ("\r\n").getBytes
-      context.become(response)
     }
 
   }
@@ -44,8 +45,15 @@ class Transceiver(publisher: ActorRef) extends Actor with ActorLogging {
   def response: Receive = {
     case res: ResponseData => {
       listener.get ! CommandResponse(res.data)
-      context.become(request)
+      client ! "close"
+      //context.become(request)
     }
+
+    case c@Connected(remote, local) =>
+      println(s"Connnected -> remote: $remote, local: $local")
+
+    case f@("connect failed" | "connection closed" | "write failed") =>
+      println(f)
 
   }
 
@@ -54,12 +62,11 @@ class Transceiver(publisher: ActorRef) extends Actor with ActorLogging {
 
 object Transceiver {
 
-  case class RequestedData(data: Array[Byte])
+  case class RequestedData(data: ByteString)
   case class RequestQueue(queue: Queue[RequestedData])
-  case class ResponseData(data: Array[Byte])
-  case object Crlf
+  case class ResponseData(data: ByteString)
 
-  def props(publisher: ActorRef) = Props(classOf[Transceiver], publisher)
+  def props = Props(classOf[Transceiver])
 }
 
 /*publisher ! ("set duck 0 900 6\r\n").getBytes

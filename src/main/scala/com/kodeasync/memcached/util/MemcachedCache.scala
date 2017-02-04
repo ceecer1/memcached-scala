@@ -2,7 +2,7 @@ package com.kodeasync.memcached.util
 
 import java.io.{BufferedReader, InputStreamReader}
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, ActorSystem}
 import com.kodeasync.memcached.handler.CommandHandler.{CommandResponse, DeleteCommand, GetCommand, SetCommand}
 import com.kodeasync.memcached.serialize.Codec
 import akka.pattern.ask
@@ -18,7 +18,7 @@ import scala.util.{Failure, Success}
   */
 class MemcachedCache(actor: ActorRef)(implicit executionContext: ExecutionContext) extends Cache[Array[Byte]]{
 
-  implicit val timeout = Timeout(5 seconds)
+  implicit val timeout = Timeout(10 seconds)
 
   /**
     * This method returns the value of the type V if the key matches
@@ -31,14 +31,22 @@ class MemcachedCache(actor: ActorRef)(implicit executionContext: ExecutionContex
     val getCommand = GetCommand(key)
     val result = (actor ? getCommand).mapTo[CommandResponse]
     result.map { r =>
-      val res = new String(r.data, "UTF-8")
+      val res = r.data.utf8String
+      println(s"Printed at get : $res")
       val arr = res.split("\r\n")
       val startByteLength = (arr(0) + "\r\n").getBytes.length
+      println(startByteLength)
       val endByteLength = (arr(2) + "\r\n").getBytes.length
-      val totalLenght = r.data.length
-      val dataArray = r.data.slice(startByteLength, totalLenght - endByteLength - 2)
+      println(endByteLength)
+      val bytes = res.getBytes
+      val totalLenght = bytes.length
+      println(totalLenght)
+      val dataArray = bytes.slice(startByteLength, totalLenght - endByteLength)
+      println(totalLenght - endByteLength - 2)
+      println(arr(1))
+      println(dataArray)
 
-      Some(codec.deserialize(dataArray))
+      Some(codec.deserialize(arr(1).getBytes))
     }
   }
 
@@ -55,7 +63,7 @@ class MemcachedCache(actor: ActorRef)(implicit executionContext: ExecutionContex
     val setCommand = SetCommand(key, expiry, valueToCache)
     val result = (actor ? setCommand).mapTo[CommandResponse]
     result.map { r =>
-      val res = new String(r.data, "UTF-8")
+      val res = r.data.utf8String
       println(res)
     }
   }
@@ -69,7 +77,7 @@ class MemcachedCache(actor: ActorRef)(implicit executionContext: ExecutionContex
     val deleteCommand = DeleteCommand(key)
     val result = (actor ? deleteCommand).mapTo[CommandResponse]
     result.map { r =>
-      val res = new String(r.data, "UTF-8")
+      val res = r.data.utf8String
       println(res)
     }
   }
