@@ -14,7 +14,7 @@ import scala.collection.immutable.Queue
 class CommandHandler()(implicit val system: ActorSystem) extends Actor with ActorLogging {
 
 
-
+  val trans = context.actorOf(Props(new Transceiver()(system)))
   import CommandHandler._
   var sendTo: Option[ActorRef] = None
 
@@ -28,7 +28,7 @@ class CommandHandler()(implicit val system: ActorSystem) extends Actor with Acto
       val requestedData2 = RequestedData(ByteString(s.bytes))
       val crlfRequest = RequestedData(crlfBytes)
       val requestQueue = RequestQueue(Queue(requestData1, requestedData2, crlfRequest))
-      val trans = context.actorOf(Props(new Transceiver()(system)))
+
       trans ! requestQueue
     }
 
@@ -38,7 +38,7 @@ class CommandHandler()(implicit val system: ActorSystem) extends Actor with Acto
       val commandBytes = ByteString(commandString)
       val requestData1 = RequestedData(commandBytes)
       val requestQueue = RequestQueue(Queue(requestData1))
-      val trans = context.actorOf(Props(new Transceiver()(system)))
+
       trans ! requestQueue
     }
 
@@ -48,7 +48,7 @@ class CommandHandler()(implicit val system: ActorSystem) extends Actor with Acto
       val commandBytes = ByteString(commandString)
       val requestData1 = RequestedData(commandBytes)
       val requestQueue = RequestQueue(Queue(requestData1))
-      val trans = context.actorOf(Props(new Transceiver()(system)))
+
       trans ! requestQueue
     }
 
