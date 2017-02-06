@@ -14,7 +14,7 @@ import scala.collection.immutable.Queue
 class CommandHandler()(implicit val system: ActorSystem) extends Actor with ActorLogging {
 
 
-  val trans = context.actorOf(Props(new Transceiver()(system)))
+  val trans = context.actorOf(Props(new Transceiver()))
   import CommandHandler._
   var sendTo: Option[ActorRef] = None
 
@@ -53,10 +53,6 @@ class CommandHandler()(implicit val system: ActorSystem) extends Actor with Acto
     }
 
     case r: CommandResponse => {
-      //val string = new String(r.data, "UTF-8")
-      //println(s"CommandResponse is : ${string}")
-      println("printed at CommandHandler")
-      println(r.data.utf8String)
       sendTo.get ! r
     }
   }

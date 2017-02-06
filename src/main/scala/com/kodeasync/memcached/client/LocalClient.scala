@@ -2,38 +2,46 @@ package com.kodeasync.memcached.client
 
 import java.net.InetSocketAddress
 
-import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
+import akka.event.slf4j.Logger
 import akka.io.{IO, Tcp}
 import akka.io.Tcp._
-import akka.stream.ActorMaterializer
 import akka.util.ByteString
 import com.kodeasync.memcached.manager.Transceiver.ResponseData
 
-class LocalClient(remote: InetSocketAddress, handler: ActorRef)(implicit val system: ActorSystem) extends Actor {
+class LocalClient(remote: InetSocketAddress, handlerActor: ActorRef)(implicit val system: ActorSystem) extends Actor
+  with ActorLogging {
   override def preStart(): Unit = {
     IO(Tcp) ! Connect(remote, options = Vector(SO.TcpNoDelay(false)))
   }
 
+  context watch handlerActor
+
   def receive: Receive = {
     case CommandFailed(_: Connect) =>
-      handler ! "connect failed"
+      handlerActor ! "connect failed"
       context stop self
 
     case c@Connected(remote, local) =>
-      handler ! c
+      handlerActor ! c
       val connection = sender()
+      log.info("Connected !")
       connection ! Register(self)
+      //val handlerActor = context.actorOf(handler(connection))
+      //handlerActor ! c
       context become {
         case data: ByteString =>
+          log.info("Sending data !")
           connection ! Write(data)
         case CommandFailed(w: Write) =>
-          handler ! "write failed"
+          handlerActor ! "write failed"
         case Received(data) =>
-          handler ! ResponseData(data)
+          println(data.utf8String)
+          handlerActor ! ResponseData(data)
         case "close" =>
           connection ! Close
         case _: ConnectionClosed =>
-          handler ! "connection closed"
+          handlerActor ! "connection closed"
           context stop self
       }
   }

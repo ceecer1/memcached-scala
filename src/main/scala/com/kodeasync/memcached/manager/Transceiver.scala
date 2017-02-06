@@ -20,7 +20,7 @@ class Transceiver()(implicit val system: ActorSystem) extends Actor with ActorLo
 
   import Transceiver._
 
-  val client = context.actorOf(Props(new LocalClient(new InetSocketAddress("192.168.99.100", 11211), self)(system)))
+  val client = context.actorOf(Props(new LocalClient(new InetSocketAddress("192.168.99.100", 11211), self)))
 
   var listener: Option[ActorRef] = None
   //use become unbecome and change context after message is sent/received
@@ -45,12 +45,13 @@ class Transceiver()(implicit val system: ActorSystem) extends Actor with ActorLo
   def response: Receive = {
     case res: ResponseData => {
       listener.get ! CommandResponse(res.data)
-      client ! "close"
-      //context.become(request)
+      //sender() ! "close"
+      //context.stop(self)
     }
 
     case c@Connected(remote, local) =>
       println(s"Connnected -> remote: $remote, local: $local")
+
 
     case f@("connect failed" | "connection closed" | "write failed") =>
       println(f)
